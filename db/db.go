@@ -3,12 +3,9 @@ package db
 import (
 	"database/sql"
 	"log"
-	"os"
 )
 
-func ConnectDB() *sql.DB {
-	databaseURL := os.Getenv("DATABASE_URL")
-
+func ConnectDB(databaseURL string) *sql.DB {
 	if databaseURL == "" {
 		log.Fatal("DATABASE_URL is not set")
 	}
