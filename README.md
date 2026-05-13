@@ -16,3 +16,5 @@ the goal of the project is to practice backend in GO while coding smth relativel
 
 - net/http for routing
 - PostgreSQL (database/sql + pgx)
+- golang-migrate for migrations
+- golang-jwt for authentication
