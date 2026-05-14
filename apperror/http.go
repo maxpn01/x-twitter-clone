@@ -14,6 +14,8 @@ func HTTPStatus(err error) int {
 	switch appErr.Code {
 	case CodeEmailAlreadyExists, CodeUsernameAlreadyExists:
 		return http.StatusConflict
+	case CodeInvalidCredentials, CodeUnauthorized:
+		return http.StatusUnauthorized
 	case CodeValidation, CodeBadRequest:
 		return http.StatusBadRequest
 	case CodeNotFound:

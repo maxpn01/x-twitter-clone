@@ -18,6 +18,8 @@ const (
 	CodeValidation            = "VALIDATION_ERROR"
 	CodeEmailAlreadyExists    = "EMAIL_ALREADY_EXISTS"
 	CodeUsernameAlreadyExists = "USERNAME_ALREADY_EXISTS"
+	CodeInvalidCredentials    = "INVALID_CREDENTIALS"
+	CodeUnauthorized          = "UNAUTHORIZED"
 	CodeNotFound              = "NOT_FOUND"
 	CodeInternal              = "INTERNAL_ERROR"
 )

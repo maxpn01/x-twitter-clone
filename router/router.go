@@ -16,6 +16,8 @@ func Router(db *sql.DB) *http.ServeMux {
 
 	mux.HandleFunc("GET /", handler.Home)
 	mux.HandleFunc("POST /auth/signup", authHandler.Signup)
+	mux.HandleFunc("POST /auth/signin", authHandler.Signin)
+	mux.HandleFunc("POST /auth/signout", authHandler.Signout)
 
 	return mux
 }
