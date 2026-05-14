@@ -3,6 +3,7 @@ package auth
 import (
 	"errors"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -10,6 +11,9 @@ import (
 
 func generateToken(sub, email, username string, expiry time.Duration) (string, error) {
 	secretKey := os.Getenv("JWT_SECRET")
+	if strings.TrimSpace(secretKey) == "" {
+		return "", errors.New("JWT_SECRET is required")
+	}
 
 	claims := jwt.MapClaims{
 		"sub":      sub,
@@ -35,6 +39,9 @@ func GenerateRefreshToken(id, email, username string) (string, error) {
 
 func VerifyToken(tokenString string) (jwt.MapClaims, error) {
 	secretKey := os.Getenv("JWT_SECRET")
+	if strings.TrimSpace(secretKey) == "" {
+		return nil, errors.New("JWT_SECRET is required")
+	}
 
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
