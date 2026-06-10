@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"time"
@@ -50,11 +52,17 @@ func NewJWTService(secret string, accessTTL, refreshTTL time.Duration) (*JWTServ
 }
 
 func (s *JWTService) IssueToken(sub string, tokenType TokenType, exp time.Time) (string, error) {
+	tokenID, err := randomTokenID()
+	if err != nil {
+		return "", err
+	}
+
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, TokenClaims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   sub,
 			ExpiresAt: jwt.NewNumericDate(exp),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			ID:        tokenID,
 		},
 		Type: tokenType,
 	})
@@ -64,6 +72,15 @@ func (s *JWTService) IssueToken(sub string, tokenType TokenType, exp time.Time) 
 	}
 
 	return tokenString, nil
+}
+
+func randomTokenID() (string, error) {
+	bytes := make([]byte, 32)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+
+	return base64.RawURLEncoding.EncodeToString(bytes), nil
 }
 
 func (s *JWTService) GenerateTokenPair(userID string) (TokenPair, error) {

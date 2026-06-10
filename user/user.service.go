@@ -54,7 +54,16 @@ func (s *UserService) Signup(input SignupInput) (auth.TokenPair, error) {
 		return auth.TokenPair{}, err
 	}
 
-	return s.jwtService.GenerateTokenPair(user.ID)
+	tokens, err := s.jwtService.GenerateTokenPair(user.ID)
+	if err != nil {
+		return auth.TokenPair{}, err
+	}
+
+	if err := s.userRepo.StoreRefreshToken(user.ID, tokens.RefreshToken); err != nil {
+		return auth.TokenPair{}, err
+	}
+
+	return tokens, nil
 }
 
 type SigninInput struct {
@@ -80,7 +89,27 @@ func (s *UserService) Signin(input SigninInput) (auth.TokenPair, error) {
 		return auth.TokenPair{}, ErrInvalidCredentials
 	}
 
-	return s.jwtService.GenerateTokenPair(user.ID)
+	tokens, err := s.jwtService.GenerateTokenPair(user.ID)
+	if err != nil {
+		return auth.TokenPair{}, err
+	}
+
+	if err := s.userRepo.StoreRefreshToken(user.ID, tokens.RefreshToken); err != nil {
+		return auth.TokenPair{}, err
+	}
+
+	return tokens, nil
 }
 
-// func (s *UserService) Signout(notsure string) error
+type SignoutInput struct {
+	RefreshToken string
+}
+
+func (s *UserService) Signout(input SignoutInput) error {
+	_, err := s.jwtService.VerifyToken(input.RefreshToken, auth.RefreshToken)
+	if err != nil {
+		return err
+	}
+
+	return s.userRepo.DeleteRefreshToken(input.RefreshToken)
+}

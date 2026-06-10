@@ -16,9 +16,10 @@ import (
 )
 
 type fakeUserRepository struct {
-	usersByID       map[string]models.User
-	usersByEmail    map[string]models.User
-	usersByUsername map[string]models.User
+	usersByID          map[string]models.User
+	usersByEmail       map[string]models.User
+	usersByUsername    map[string]models.User
+	refreshTokenUserID map[string]string
 }
 
 func (r *fakeUserRepository) CreateUser(input CreateUserInput) (models.User, error) {
@@ -56,6 +57,18 @@ func (r *fakeUserRepository) GetUserByEmailOrUsername(emailOrUsername string) (m
 	}
 
 	return models.User{}, ErrUserNotFound
+}
+func (r *fakeUserRepository) StoreRefreshToken(userID string, refreshToken string) error {
+	r.refreshTokenUserID[refreshToken] = userID
+	return nil
+}
+func (r *fakeUserRepository) DeleteRefreshToken(refreshToken string) error {
+	if _, ok := r.refreshTokenUserID[refreshToken]; !ok {
+		return ErrRefreshTokenNotFound
+	}
+
+	delete(r.refreshTokenUserID, refreshToken)
+	return nil
 }
 
 func TestUserService(t *testing.T) {
@@ -180,7 +193,55 @@ func TestUserService(t *testing.T) {
 	})
 
 	t.Run("signout user successfully", func(t *testing.T) {
-		t.Fatal("not implemented")
+		service := newTestUserService(t)
+
+		tokens, err := service.Signup(SignupInput{"test@example.com", "testuser", "Test User", "Password123!"})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = service.Signout(SignoutInput{RefreshToken: tokens.RefreshToken})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		repo := service.userRepo.(*fakeUserRepository)
+		if _, ok := repo.refreshTokenUserID[tokens.RefreshToken]; ok {
+			t.Fatal("expected refresh token to be deleted")
+		}
+	})
+
+	t.Run("signout rejects already revoked refresh token", func(t *testing.T) {
+		service := newTestUserService(t)
+
+		tokens, err := service.Signup(SignupInput{"test@example.com", "testuser", "Test User", "Password123!"})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = service.Signout(SignoutInput{RefreshToken: tokens.RefreshToken})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = service.Signout(SignoutInput{RefreshToken: tokens.RefreshToken})
+		if !errors.Is(err, ErrRefreshTokenNotFound) {
+			t.Fatalf("expected ErrRefreshTokenNotFound, got %v", err)
+		}
+	})
+
+	t.Run("signout rejects access token", func(t *testing.T) {
+		service := newTestUserService(t)
+
+		tokens, err := service.Signup(SignupInput{"test@example.com", "testuser", "Test User", "Password123!"})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = service.Signout(SignoutInput{RefreshToken: tokens.AccessToken})
+		if err == nil {
+			t.Fatal("expected access token to fail signout")
+		}
 	})
 }
 
@@ -251,9 +312,10 @@ func newTestFakeUserRepo(t *testing.T) *fakeUserRepository {
 	t.Helper()
 
 	return &fakeUserRepository{
-		usersByID:       map[string]models.User{},
-		usersByEmail:    map[string]models.User{},
-		usersByUsername: map[string]models.User{},
+		usersByID:          map[string]models.User{},
+		usersByEmail:       map[string]models.User{},
+		usersByUsername:    map[string]models.User{},
+		refreshTokenUserID: map[string]string{},
 	}
 }
 

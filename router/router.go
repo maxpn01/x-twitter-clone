@@ -33,6 +33,7 @@ func Router(db *sql.DB) *http.ServeMux {
 
 	mux.HandleFunc("POST /api/signup", userHandler.Signup)
 	mux.HandleFunc("POST /api/signin", userHandler.Signin)
+	mux.HandleFunc("POST /api/signout", userHandler.Signout)
 
 	return mux
 }

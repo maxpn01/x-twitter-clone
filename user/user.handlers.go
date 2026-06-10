@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 )
 
 type UserHandler struct {
@@ -24,7 +25,7 @@ func (h *UserHandler) Signup(w http.ResponseWriter, r *http.Request) {
 
 	err := decoder.Decode(&req)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, "incorrect json shape for the request", http.StatusBadRequest)
 		return
 	}
 
@@ -76,4 +77,34 @@ func (h *UserHandler) Signin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+}
+
+func (h *UserHandler) Signout(w http.ResponseWriter, r *http.Request) {
+	refreshToken, ok := bearerToken(r)
+	if !ok {
+		http.Error(w, "the user is not authorized", http.StatusUnauthorized)
+		return
+	}
+
+	err := h.userService.Signout(SignoutInput{RefreshToken: refreshToken})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func bearerToken(r *http.Request) (string, bool) {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return "", false
+	}
+
+	token, ok := strings.CutPrefix(authHeader, "Bearer ")
+	if !ok || token == "" {
+		return "", false
+	}
+
+	return token, true
 }
