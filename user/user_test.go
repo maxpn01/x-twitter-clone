@@ -1,6 +1,7 @@
 package user
 
 import (
+	"context"
 	"errors"
 	"math/rand"
 	"net/http"
@@ -22,7 +23,7 @@ type fakeUserRepository struct {
 	refreshTokenUserID map[string]string
 }
 
-func (r *fakeUserRepository) CreateUser(input CreateUserInput) (models.User, error) {
+func (r *fakeUserRepository) CreateUser(ctx context.Context, input CreateUserInput) (models.User, error) {
 	if _, ok := r.usersByEmail[input.Email]; ok {
 		return models.User{}, ErrEmailAlreadyExists
 	}
@@ -38,16 +39,16 @@ func (r *fakeUserRepository) CreateUser(input CreateUserInput) (models.User, err
 
 	return newUser, nil
 }
-func (r *fakeUserRepository) GetUserByID(id string) (models.User, error) {
+func (r *fakeUserRepository) GetUserByID(ctx context.Context, id string) (models.User, error) {
 	user, ok := r.usersByID[id]
 
 	if !ok {
-		return models.User{}, errors.New("user not found")
+		return models.User{}, ErrUserNotFound
 	}
 
 	return user, nil
 }
-func (r *fakeUserRepository) GetUserByEmailOrUsername(emailOrUsername string) (models.User, error) {
+func (r *fakeUserRepository) GetUserByEmailOrUsername(ctx context.Context, emailOrUsername string) (models.User, error) {
 	if user, ok := r.usersByEmail[emailOrUsername]; ok {
 		return user, nil
 	}
@@ -58,11 +59,11 @@ func (r *fakeUserRepository) GetUserByEmailOrUsername(emailOrUsername string) (m
 
 	return models.User{}, ErrUserNotFound
 }
-func (r *fakeUserRepository) StoreRefreshToken(userID string, refreshToken string) error {
+func (r *fakeUserRepository) StoreRefreshToken(ctx context.Context, userID string, refreshToken string) error {
 	r.refreshTokenUserID[refreshToken] = userID
 	return nil
 }
-func (r *fakeUserRepository) DeleteRefreshToken(refreshToken string) error {
+func (r *fakeUserRepository) DeleteRefreshToken(ctx context.Context, refreshToken string) error {
 	if _, ok := r.refreshTokenUserID[refreshToken]; !ok {
 		return ErrRefreshTokenNotFound
 	}
@@ -75,7 +76,7 @@ func TestUserService(t *testing.T) {
 	t.Run("signup user successfully", func(t *testing.T) {
 		service := newTestUserService(t)
 
-		tokens, err := service.Signup(SignupInput{"test2@example.com", "testuser", "Test User", "Password123!"})
+		tokens, err := service.Signup(context.Background(), SignupInput{"test2@example.com", "testuser", "Test User", "Password123!"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -97,7 +98,7 @@ func TestUserService(t *testing.T) {
 			t.Fatal("expected user id in token subject")
 		}
 
-		createdUser, err := service.userRepo.GetUserByEmailOrUsername("test2@example.com")
+		createdUser, err := service.userRepo.GetUserByEmailOrUsername(context.Background(), "test2@example.com")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -114,12 +115,12 @@ func TestUserService(t *testing.T) {
 	t.Run("signup rejects duplicate email", func(t *testing.T) {
 		service := newTestUserService(t)
 
-		_, err := service.Signup(SignupInput{"test@example.com", "testuser", "Test User", "Password123!"})
+		_, err := service.Signup(context.Background(), SignupInput{"test@example.com", "testuser", "Test User", "Password123!"})
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		_, err = service.Signup(SignupInput{"test@example.com", "testuser2", "Test User", "Password123!"})
+		_, err = service.Signup(context.Background(), SignupInput{"test@example.com", "testuser2", "Test User", "Password123!"})
 		if !errors.Is(err, ErrEmailAlreadyExists) {
 			t.Fatalf("expected ErrEmailAlreadyExists, got %v", err)
 		}
@@ -128,12 +129,12 @@ func TestUserService(t *testing.T) {
 	t.Run("signup rejects duplicate username", func(t *testing.T) {
 		service := newTestUserService(t)
 
-		_, err := service.Signup(SignupInput{"test@example.com", "testuser", "Test User", "Password123!"})
+		_, err := service.Signup(context.Background(), SignupInput{"test@example.com", "testuser", "Test User", "Password123!"})
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		_, err = service.Signup(SignupInput{"test2@example.com", "testuser", "Test User", "Password123!"})
+		_, err = service.Signup(context.Background(), SignupInput{"test2@example.com", "testuser", "Test User", "Password123!"})
 		if !errors.Is(err, ErrUsernameAlreadyExists) {
 			t.Fatalf("expected ErrUsernameAlreadyExists, got %v", err)
 		}
@@ -142,12 +143,12 @@ func TestUserService(t *testing.T) {
 	t.Run("signin user successfully", func(t *testing.T) {
 		service := newTestUserService(t)
 
-		_, err := service.Signup(SignupInput{"test@example.com", "testuser", "Test User", "Password123!"})
+		_, err := service.Signup(context.Background(), SignupInput{"test@example.com", "testuser", "Test User", "Password123!"})
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		tokens, err := service.Signin(SigninInput{"test@example.com", "Password123!"})
+		tokens, err := service.Signin(context.Background(), SigninInput{"test@example.com", "Password123!"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -164,12 +165,12 @@ func TestUserService(t *testing.T) {
 	t.Run("signin user successfully with username", func(t *testing.T) {
 		service := newTestUserService(t)
 
-		_, err := service.Signup(SignupInput{"test@example.com", "testuser", "Test User", "Password123!"})
+		_, err := service.Signup(context.Background(), SignupInput{"test@example.com", "testuser", "Test User", "Password123!"})
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		tokens, err := service.Signin(SigninInput{"testuser", "Password123!"})
+		tokens, err := service.Signin(context.Background(), SigninInput{"testuser", "Password123!"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -186,7 +187,7 @@ func TestUserService(t *testing.T) {
 	t.Run("signin requires email or username", func(t *testing.T) {
 		service := newTestUserService(t)
 
-		_, err := service.Signin(SigninInput{"", "Password123!"})
+		_, err := service.Signin(context.Background(), SigninInput{"", "Password123!"})
 		if err == nil || err.Error() != "email_or_username is required" {
 			t.Fatalf("expected email_or_username required error, got %v", err)
 		}
@@ -195,12 +196,12 @@ func TestUserService(t *testing.T) {
 	t.Run("signout user successfully", func(t *testing.T) {
 		service := newTestUserService(t)
 
-		tokens, err := service.Signup(SignupInput{"test@example.com", "testuser", "Test User", "Password123!"})
+		tokens, err := service.Signup(context.Background(), SignupInput{"test@example.com", "testuser", "Test User", "Password123!"})
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		err = service.Signout(SignoutInput{RefreshToken: tokens.RefreshToken})
+		err = service.Signout(context.Background(), SignoutInput{RefreshToken: tokens.RefreshToken})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -214,17 +215,17 @@ func TestUserService(t *testing.T) {
 	t.Run("signout rejects already revoked refresh token", func(t *testing.T) {
 		service := newTestUserService(t)
 
-		tokens, err := service.Signup(SignupInput{"test@example.com", "testuser", "Test User", "Password123!"})
+		tokens, err := service.Signup(context.Background(), SignupInput{"test@example.com", "testuser", "Test User", "Password123!"})
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		err = service.Signout(SignoutInput{RefreshToken: tokens.RefreshToken})
+		err = service.Signout(context.Background(), SignoutInput{RefreshToken: tokens.RefreshToken})
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		err = service.Signout(SignoutInput{RefreshToken: tokens.RefreshToken})
+		err = service.Signout(context.Background(), SignoutInput{RefreshToken: tokens.RefreshToken})
 		if !errors.Is(err, ErrRefreshTokenNotFound) {
 			t.Fatalf("expected ErrRefreshTokenNotFound, got %v", err)
 		}
@@ -233,12 +234,12 @@ func TestUserService(t *testing.T) {
 	t.Run("signout rejects access token", func(t *testing.T) {
 		service := newTestUserService(t)
 
-		tokens, err := service.Signup(SignupInput{"test@example.com", "testuser", "Test User", "Password123!"})
+		tokens, err := service.Signup(context.Background(), SignupInput{"test@example.com", "testuser", "Test User", "Password123!"})
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		err = service.Signout(SignoutInput{RefreshToken: tokens.AccessToken})
+		err = service.Signout(context.Background(), SignoutInput{RefreshToken: tokens.AccessToken})
 		if err == nil {
 			t.Fatal("expected access token to fail signout")
 		}

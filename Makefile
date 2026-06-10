@@ -1,8 +1,10 @@
-include .env
+-include .env
 export
 
+.PHONY: run migrate-up migrate-down migrate-create
+
 run:
-	go run cmd/main.go
+	go run main.go
 
 migrate-up:
 	migrate -path migrations -database $(DATABASE_URL) up

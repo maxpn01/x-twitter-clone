@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"log"
+	"time"
 )
 
 func ConnectDB(databaseURL string) *sql.DB {
@@ -14,6 +15,11 @@ func ConnectDB(databaseURL string) *sql.DB {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(25)
+	db.SetConnMaxIdleTime(5 * time.Minute)
+	db.SetConnMaxLifetime(time.Hour)
 
 	return db
 }

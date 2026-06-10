@@ -1,6 +1,7 @@
 package user
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -20,16 +21,12 @@ func NewUserHandler(userService *UserService) *UserHandler {
 func (h *UserHandler) Signup(w http.ResponseWriter, r *http.Request) {
 	req := SignupInput{}
 
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-
-	err := decoder.Decode(&req)
-	if err != nil {
+	if err := decodeJSON(r, &req); err != nil {
 		http.Error(w, "incorrect json shape for the request", http.StatusBadRequest)
 		return
 	}
 
-	tokens, err := h.userService.Signup(req)
+	tokens, err := h.userService.Signup(r.Context(), req)
 	if err != nil {
 		status := http.StatusBadRequest
 		if errors.Is(err, ErrEmailAlreadyExists) || errors.Is(err, ErrUsernameAlreadyExists) {
@@ -40,9 +37,7 @@ func (h *UserHandler) Signup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	err = json.NewEncoder(w).Encode(tokens)
-	if err != nil {
+	if err := writeJSON(w, http.StatusOK, tokens); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -51,16 +46,12 @@ func (h *UserHandler) Signup(w http.ResponseWriter, r *http.Request) {
 func (h *UserHandler) Signin(w http.ResponseWriter, r *http.Request) {
 	req := SigninInput{}
 
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-
-	err := decoder.Decode(&req)
-	if err != nil {
+	if err := decodeJSON(r, &req); err != nil {
 		http.Error(w, "incorrect json shape for the request", http.StatusBadRequest)
 		return
 	}
 
-	tokens, err := h.userService.Signin(req)
+	tokens, err := h.userService.Signin(r.Context(), req)
 	if err != nil {
 		status := http.StatusBadRequest
 		if errors.Is(err, ErrInvalidCredentials) {
@@ -71,9 +62,7 @@ func (h *UserHandler) Signin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	err = json.NewEncoder(w).Encode(tokens)
-	if err != nil {
+	if err := writeJSON(w, http.StatusOK, tokens); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -86,8 +75,7 @@ func (h *UserHandler) Signout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.userService.Signout(SignoutInput{RefreshToken: refreshToken})
-	if err != nil {
+	if err := h.userService.Signout(r.Context(), SignoutInput{RefreshToken: refreshToken}); err != nil {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
@@ -107,4 +95,22 @@ func bearerToken(r *http.Request) (string, bool) {
 	}
 
 	return token, true
+}
+
+func decodeJSON(r *http.Request, dst any) error {
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	return decoder.Decode(dst)
+}
+
+func writeJSON(w http.ResponseWriter, status int, value any) error {
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(value); err != nil {
+		return err
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_, err := w.Write(buf.Bytes())
+	return err
 }

@@ -1,6 +1,7 @@
 package user
 
 import (
+	"context"
 	"errors"
 
 	"github.com/maxpn01/x-twitter-clone/user/auth"
@@ -33,7 +34,7 @@ type SignupInput struct {
 	Password string `json:"password"`
 }
 
-func (s *UserService) Signup(input SignupInput) (auth.TokenPair, error) {
+func (s *UserService) Signup(ctx context.Context, input SignupInput) (auth.TokenPair, error) {
 	err := ValidateSignupInput(input)
 	if err != nil {
 		return auth.TokenPair{}, err
@@ -44,7 +45,7 @@ func (s *UserService) Signup(input SignupInput) (auth.TokenPair, error) {
 		return auth.TokenPair{}, err
 	}
 
-	user, err := s.userRepo.CreateUser(CreateUserInput{
+	user, err := s.userRepo.CreateUser(ctx, CreateUserInput{
 		input.Email,
 		input.Username,
 		input.Fullname,
@@ -59,7 +60,7 @@ func (s *UserService) Signup(input SignupInput) (auth.TokenPair, error) {
 		return auth.TokenPair{}, err
 	}
 
-	if err := s.userRepo.StoreRefreshToken(user.ID, tokens.RefreshToken); err != nil {
+	if err := s.userRepo.StoreRefreshToken(ctx, user.ID, tokens.RefreshToken); err != nil {
 		return auth.TokenPair{}, err
 	}
 
@@ -71,12 +72,12 @@ type SigninInput struct {
 	Password        string `json:"password"`
 }
 
-func (s *UserService) Signin(input SigninInput) (auth.TokenPair, error) {
+func (s *UserService) Signin(ctx context.Context, input SigninInput) (auth.TokenPair, error) {
 	if err := ValidateSigninInput(input); err != nil {
 		return auth.TokenPair{}, err
 	}
 
-	user, err := s.userRepo.GetUserByEmailOrUsername(input.EmailOrUsername)
+	user, err := s.userRepo.GetUserByEmailOrUsername(ctx, input.EmailOrUsername)
 	if err != nil {
 		if errors.Is(err, ErrUserNotFound) {
 			return auth.TokenPair{}, ErrInvalidCredentials
@@ -94,7 +95,7 @@ func (s *UserService) Signin(input SigninInput) (auth.TokenPair, error) {
 		return auth.TokenPair{}, err
 	}
 
-	if err := s.userRepo.StoreRefreshToken(user.ID, tokens.RefreshToken); err != nil {
+	if err := s.userRepo.StoreRefreshToken(ctx, user.ID, tokens.RefreshToken); err != nil {
 		return auth.TokenPair{}, err
 	}
 
@@ -105,11 +106,11 @@ type SignoutInput struct {
 	RefreshToken string
 }
 
-func (s *UserService) Signout(input SignoutInput) error {
+func (s *UserService) Signout(ctx context.Context, input SignoutInput) error {
 	_, err := s.jwtService.VerifyToken(input.RefreshToken, auth.RefreshToken)
 	if err != nil {
 		return err
 	}
 
-	return s.userRepo.DeleteRefreshToken(input.RefreshToken)
+	return s.userRepo.DeleteRefreshToken(ctx, input.RefreshToken)
 }
