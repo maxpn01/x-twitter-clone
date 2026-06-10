@@ -34,7 +34,7 @@ func TestJWTService(t *testing.T) {
 
 		_, err = service.VerifyToken(pair.RefreshToken, AccessToken)
 		if err == nil {
-			t.Fatal("expected refresh token to fail as access token")
+			t.Fatal("expected refresh >token to fail as access token")
 		}
 	})
 
