@@ -1,10 +1,15 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/joho/godotenv"
@@ -52,8 +57,33 @@ func main() {
 	}
 
 	addr := ":" + port
-	router := router.Router(db)
 
-	log.Println(("server listening on http://localhost" + addr))
-	log.Fatal(http.ListenAndServe(addr, router))
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: router.Router(db),
+	}
+
+	go func() {
+		log.Println("server listening on http://localhost" + addr)
+
+		err := srv.ListenAndServe()
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("server error: %v", err)
+		}
+	}()
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+
+	<-stop
+	log.Println("shutdown signal received")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Fatal("graceful shutdown failed: ", err)
+	}
+
+	log.Println("server stopped gracefully")
 }
