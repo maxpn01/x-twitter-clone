@@ -57,6 +57,30 @@ func (s *UserService) Signup(input SignupInput) (auth.TokenPair, error) {
 	return s.jwtService.GenerateTokenPair(user.ID)
 }
 
-// func (s *UserService) Signin(email, username, password string) (auth.TokenPair, error)
+type SigninInput struct {
+	EmailOrUsername string `json:"email_or_username"`
+	Password        string `json:"password"`
+}
+
+func (s *UserService) Signin(input SigninInput) (auth.TokenPair, error) {
+	if err := ValidateSigninInput(input); err != nil {
+		return auth.TokenPair{}, err
+	}
+
+	user, err := s.userRepo.GetUserByEmailOrUsername(input.EmailOrUsername)
+	if err != nil {
+		if errors.Is(err, ErrUserNotFound) {
+			return auth.TokenPair{}, ErrInvalidCredentials
+		}
+		return auth.TokenPair{}, err
+	}
+
+	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password))
+	if err != nil {
+		return auth.TokenPair{}, ErrInvalidCredentials
+	}
+
+	return s.jwtService.GenerateTokenPair(user.ID)
+}
 
 // func (s *UserService) Signout(notsure string) error

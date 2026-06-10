@@ -3,7 +3,10 @@ package user
 import (
 	"errors"
 	"math/rand"
+	"net/http"
+	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -43,14 +46,16 @@ func (r *fakeUserRepository) GetUserByID(id string) (models.User, error) {
 
 	return user, nil
 }
-func (r *fakeUserRepository) GetUserByEmail(email string) (models.User, error) {
-	user, ok := r.usersByEmail[email]
-
-	if !ok {
-		return models.User{}, errors.New("user not found")
+func (r *fakeUserRepository) GetUserByEmailOrUsername(emailOrUsername string) (models.User, error) {
+	if user, ok := r.usersByEmail[emailOrUsername]; ok {
+		return user, nil
 	}
 
-	return user, nil
+	if user, ok := r.usersByUsername[emailOrUsername]; ok {
+		return user, nil
+	}
+
+	return models.User{}, ErrUserNotFound
 }
 
 func TestUserService(t *testing.T) {
@@ -79,7 +84,7 @@ func TestUserService(t *testing.T) {
 			t.Fatal("expected user id in token subject")
 		}
 
-		createdUser, err := service.userRepo.GetUserByEmail("test2@example.com")
+		createdUser, err := service.userRepo.GetUserByEmailOrUsername("test2@example.com")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -122,11 +127,109 @@ func TestUserService(t *testing.T) {
 	})
 
 	t.Run("signin user successfully", func(t *testing.T) {
-		t.Fatal("not implemented")
+		service := newTestUserService(t)
+
+		_, err := service.Signup(SignupInput{"test@example.com", "testuser", "Test User", "Password123!"})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		tokens, err := service.Signin(SigninInput{"test@example.com", "Password123!"})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if tokens.AccessToken == "" {
+			t.Fatal("expected access token")
+		}
+
+		if tokens.RefreshToken == "" {
+			t.Fatal("expected refresh token")
+		}
+	})
+
+	t.Run("signin user successfully with username", func(t *testing.T) {
+		service := newTestUserService(t)
+
+		_, err := service.Signup(SignupInput{"test@example.com", "testuser", "Test User", "Password123!"})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		tokens, err := service.Signin(SigninInput{"testuser", "Password123!"})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if tokens.AccessToken == "" {
+			t.Fatal("expected access token")
+		}
+
+		if tokens.RefreshToken == "" {
+			t.Fatal("expected refresh token")
+		}
+	})
+
+	t.Run("signin requires email or username", func(t *testing.T) {
+		service := newTestUserService(t)
+
+		_, err := service.Signin(SigninInput{"", "Password123!"})
+		if err == nil || err.Error() != "email_or_username is required" {
+			t.Fatalf("expected email_or_username required error, got %v", err)
+		}
 	})
 
 	t.Run("signout user successfully", func(t *testing.T) {
 		t.Fatal("not implemented")
+	})
+}
+
+func TestUserHandler(t *testing.T) {
+	t.Run("signup rejects incorrect json shape", func(t *testing.T) {
+		service := newTestUserService(t)
+		handler := NewUserHandler(service)
+
+		body := `{
+			"email": "test@example.com",
+			"usernamea": "testuser",
+			"fullname": "Test User",
+			"password": "Password123!"
+		}`
+		req := httptest.NewRequest(http.MethodPost, "/api/signin", strings.NewReader(body))
+		rec := httptest.NewRecorder()
+
+		handler.Signup(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
+		}
+
+		if strings.TrimSpace(rec.Body.String()) != "incorrect json shape for the request" {
+			t.Fatalf("expected incorrect json shape error, got %q", rec.Body.String())
+		}
+	})
+	t.Run("signin rejects incorrect json shape", func(t *testing.T) {
+		service := newTestUserService(t)
+		handler := NewUserHandler(service)
+
+		body := `{
+			"email": "test@example.com",
+			"username": "testuser",
+			"fullname": "Test User",
+			"password": "Password123!"
+		}`
+		req := httptest.NewRequest(http.MethodPost, "/api/signin", strings.NewReader(body))
+		rec := httptest.NewRecorder()
+
+		handler.Signin(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
+		}
+
+		if strings.TrimSpace(rec.Body.String()) != "incorrect json shape for the request" {
+			t.Fatalf("expected incorrect json shape error, got %q", rec.Body.String())
+		}
 	})
 }
 

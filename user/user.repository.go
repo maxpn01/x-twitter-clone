@@ -12,6 +12,8 @@ import (
 var (
 	ErrEmailAlreadyExists    = errors.New("email already exists")
 	ErrUsernameAlreadyExists = errors.New("username already exists")
+	ErrUserNotFound          = errors.New("user not found")
+	ErrInvalidCredentials    = errors.New("invalid email, username or password")
 )
 
 type CreateUserInput struct {
@@ -24,7 +26,7 @@ type CreateUserInput struct {
 type UserRepository interface {
 	CreateUser(input CreateUserInput) (models.User, error)
 	GetUserByID(id string) (models.User, error)
-	GetUserByEmail(email string) (models.User, error)
+	GetUserByEmailOrUsername(emailOrUsername string) (models.User, error)
 }
 
 type PostgresUserRepository struct {
@@ -87,6 +89,37 @@ func (r *PostgresUserRepository) GetUserByID(id string) (models.User, error) {
 	return models.User{}, nil
 }
 
-func (r *PostgresUserRepository) GetUserByEmail(email string) (models.User, error) {
-	return models.User{}, nil
+func (r *PostgresUserRepository) GetUserByEmailOrUsername(emailOrUsername string) (models.User, error) {
+	query := `SELECT id, email, username, fullname, password_hash, created_at, updated_at
+			  FROM users
+			  WHERE email = $1 OR username = $1`
+
+	var user models.User
+
+	err := r.DB.QueryRow(
+		query,
+		emailOrUsername,
+	).Scan(
+		&user.ID,
+		&user.Email,
+		&user.Username,
+		&user.Fullname,
+		&user.PasswordHash,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if err != nil {
+		return models.User{}, translateGetUserError(err)
+	}
+
+	return user, nil
+}
+
+func translateGetUserError(err error) error {
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrUserNotFound
+	}
+
+	return err
 }

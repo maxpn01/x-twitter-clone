@@ -28,15 +28,15 @@ func Router(db *sql.DB) *http.ServeMux {
 
 	userHandler := user.NewUserHandler(userService)
 
-	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, "the server is alive ")
-	})
-
-	mux.HandleFunc("GET /api", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, "the api is running and healthy")
-	})
+	mux.HandleFunc("GET /", healthHandler)
+	mux.HandleFunc("GET /api", healthHandler)
 
 	mux.HandleFunc("POST /api/signup", userHandler.Signup)
+	mux.HandleFunc("POST /api/signin", userHandler.Signin)
 
 	return mux
+}
+
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintln(w, "ok")
 }

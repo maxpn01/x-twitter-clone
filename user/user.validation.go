@@ -26,6 +26,18 @@ func ValidateSignupInput(input SignupInput) error {
 	return nil
 }
 
+func ValidateSigninInput(input SigninInput) error {
+	if input.EmailOrUsername == "" {
+		return errors.New("email_or_username is required")
+	}
+
+	if input.Password == "" {
+		return errors.New("password is required")
+	}
+
+	return nil
+}
+
 func validateEmail(email string) error {
 	if email == "" {
 		return errors.New("email is required")
@@ -43,6 +55,10 @@ func validateEmail(email string) error {
 }
 
 func validateUsername(username string) error {
+	if username == "" {
+		return errors.New("username is required")
+	}
+
 	if len(username) < 3 {
 		return errors.New("username must be at least 3 characters")
 	}
@@ -98,6 +114,10 @@ func validateFullname(fullname string) error {
 }
 
 func validatePassword(password string) error {
+	if password == "" {
+		return errors.New("password is required")
+	}
+
 	if len(password) < 8 {
 		return errors.New("password must be at least 8 characters")
 	}
